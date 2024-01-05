@@ -1,0 +1,7 @@
+services:
+  nginx:
+    build: .
+    environment:
+      - OSU_BEATMAP_API_URL=$OSU_BEATMAP_API_URL
+    ports:
+      - 8080:80

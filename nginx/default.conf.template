@@ -1,0 +1,13 @@
+
+server {
+    listen 80;
+
+    location / {
+        proxy_pass ${OSU_BEATMAP_API_URL}/;
+    }
+
+    location /discord-cdn/ {
+        deny all;
+        proxy_pass https://cdn.discordapp.com/;
+    }
+}

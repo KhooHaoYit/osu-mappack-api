@@ -1,0 +1,40 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Beatmapset {
+  id Int @id
+
+  lastUpdate DateTime
+
+  snapshots BeatmapsetSnapshot[]
+
+  i_createdAt DateTime @default(now())
+  i_updatedAt DateTime @updatedAt
+}
+
+model BeatmapsetSnapshot {
+  beatmapsetId Int
+  lastModified DateTime
+
+  size     Int
+  url      String
+  filename String
+  crc32    String
+
+  beatmapset Beatmapset @relation(fields: [beatmapsetId], references: [id])
+
+  i_createdAt DateTime @default(now())
+  i_updatedAt DateTime @updatedAt
+
+  @@id([beatmapsetId, lastModified])
+  @@index([beatmapsetId, lastModified])
+}
