@@ -3,6 +3,7 @@ server {
     listen 80;
 
     location / {
+        proxy_set_header Authorization "${AUTHORIZATION_HEADER}";
         proxy_pass ${OSU_BEATMAP_API_URL}/;
     }
 

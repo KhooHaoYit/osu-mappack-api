@@ -3,5 +3,6 @@ services:
     build: .
     environment:
       - OSU_BEATMAP_API_URL=$OSU_BEATMAP_API_URL
+      - AUTHORIZATION_HEADER=$AUTHORIZATION_HEADER
     ports:
       - 8080:80
