@@ -104,18 +104,7 @@ export class AppService {
     if (!beatmap.beatmapId && !beatmap.beatmapsetId)
       throw new Error(`Please provide either beatmapsetId or beatmapId`);
     // check if osz has update
-    const { body } = await request(
-      `https://osu.ppy.sh/api/get_beatmaps`,
-      {
-        query: {
-          ...(beatmap.beatmapId
-            ? { b: beatmap.beatmapId }
-            : { s: beatmap.beatmapsetId }),
-          limit: 1,
-          k: env.OSU_API_TOKEN,
-        },
-      },
-    );
+    const { body } = await this.#getBeatmap(beatmap);
     const [data] = await body.json() as [Beatmap] | [];
     if (!data)
       throw new Error(`Beatmap/beatmapset does not exists`);
@@ -201,6 +190,29 @@ export class AppService {
       data: { lastUpdate },
     });
     return [snapshot, data];
+  }
+
+  getBeatmapLock = Promise.resolve();
+  async #getBeatmap(
+    beatmap: { beatmapsetId?: number, beatmapId?: number },
+  ) {
+    const currentLock = this.getBeatmapLock;
+    let resolve: () => void;
+    this.getBeatmapLock = new Promise(rs => resolve = rs);
+    await currentLock;
+    setTimeout(() => resolve(), 100);
+    return await request(
+      `https://osu.ppy.sh/api/get_beatmaps`,
+      {
+        query: {
+          ...(beatmap.beatmapId
+            ? { b: beatmap.beatmapId }
+            : { s: beatmap.beatmapsetId }),
+          limit: 1,
+          k: env.OSU_API_TOKEN,
+        },
+      },
+    );
   }
 
 }
