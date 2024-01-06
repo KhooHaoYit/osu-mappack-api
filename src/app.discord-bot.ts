@@ -76,6 +76,10 @@ export class DiscordBotService implements OnApplicationBootstrap, OnApplicationS
       const after = Date.now();
       const duration = after - before;
       const size = success.reduce((acc, [snapshot]) => acc + snapshot.size, 0);
+      const packId = this.appService.generateTemporaryPack(
+        `${reaction.message.id}.zip`,
+        success.map(([snapshot]) => [snapshot.beatmapsetId, snapshot.lastModified]),
+      );
       await user.send({
         content: `
 Downloaded ${success.length} beatmap(s) totaling ${formatBytes(size)} in ${duration / 1_000}s${failed.length ? `, ${failed.length} of which failed to download` : ''}
@@ -83,7 +87,11 @@ Downloaded ${success.length} beatmap(s) totaling ${formatBytes(size)} in ${durat
         components: [
           new ActionRowBuilder<MessageActionRowComponentBuilder>()
             .addComponents(
-              generatePackDownloadButton(`${reaction.message.id}.zip`, success.map(([snapshot]) => snapshot)),
+              new ButtonBuilder()
+                .setStyle(ButtonStyle.Link)
+                .setLabel('Download as Pack')
+                .setURL(`${env.REVERSE_PROXY_URL}/pack?packId=${packId}`)
+                .setDisabled(success.length === 0),
               new ButtonBuilder()
                 .setStyle(ButtonStyle.Link)
                 .setLabel('Link to Message')
@@ -123,14 +131,6 @@ Downloaded ${success.length} beatmap(s) totaling ${formatBytes(size)} in ${durat
         ?? [];
     }
 
-    function generatePackDownloadButton(filename: string, snapshots: BeatmapsetSnapshot[]) {
-      return new ButtonBuilder()
-        .setStyle(ButtonStyle.Link)
-        .setLabel('Download as Pack')
-        .setURL(`${env.REVERSE_PROXY_URL}/pack?filename=${filename}&beatmapsetIds=${snapshots
-          .map((snapshot) => `${snapshot.beatmapsetId},${snapshot.lastModified.getTime()}`).join(';')}`)
-        .setDisabled(snapshots.length === 0);
-    }
 
     function generateDownloadButton(snapshot: BeatmapsetSnapshot, bm: Beatmap) {
       let label = `${bm.beatmapset_id} ${bm.artist} - ${bm.title}.osz`;
@@ -153,6 +153,7 @@ Downloaded ${success.length} beatmap(s) totaling ${formatBytes(size)} in ${durat
       return `${Math.round(size * 1000) / 1000}GiB`;
     }
 
+    this.client.on('error', err => this.logger.error(err));
     this.client.on('ready', () => this.logger.log(`Logged in as ${this.client.user?.tag}`));
     await this.client.login(env.DISCORD_BOT_TOKEN);
   }

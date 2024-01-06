@@ -25,26 +25,12 @@ export class AppController {
   @Get('/pack')
   async pack(
     @Response() res: ExpressResponse,
-    @Query('filename', { transform: value => value ?? '' }) filename: string,
-    @Query('beatmapsetIds', {
-      transform: (value?: string) => {
-        const result = value?.split(';')
-          .map(entry => {
-            const [id, date] = entry.split(',').map(item => +item);
-            if (!Number.isInteger(id))
-              return;
-            return Number.isInteger(date)
-              ? [id, new Date(date)]
-              : [id];
-          })
-          .filter(entry => entry);
-        return result ?? [];
-      }
-    })
-    beatmapsetIds: [beatmapsetId: number, lastModified?: Date][],
+    @Query('packId', { transform: value => value ?? '' }) packId: string,
   ) {
-    if (!filename.endsWith('.zip'))
-      throw new Error(`filename should ends with .zip`);
+    const packInfo = this.appService.getTemporaryPack(packId);
+    if (!packInfo)
+      throw new Error(`Pack has expired or it's invalid`);
+    const [filename, beatmapsetIds] = packInfo;
     const pack = await this.appService.buildPack(beatmapsetIds);
     res
       .set('X-Archive-Files', 'zip')

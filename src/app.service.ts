@@ -7,6 +7,7 @@ import { pipeline } from 'stream/promises';
 import { CRC32Stream } from 'crc32-stream';
 import { PassThrough } from 'stream';
 import { BeatmapsetSnapshot } from '@prisma/client';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class AppService {
@@ -14,6 +15,19 @@ export class AppService {
   constructor(
     private readonly prisma: PrismaService,
   ) { }
+
+  packInfos = new Map<string, [filename: string, [beatmapsetId: number, lastModified?: Date][]]>;
+  generateTemporaryPack(filename: string, beatmapsets: [beatmapsetId: number, lastModified?: Date][]) {
+    if (!beatmapsets.length)
+      return '';
+    const packId = randomUUID();
+    this.packInfos.set(packId, [filename, beatmapsets]);
+    setTimeout(() => this.packInfos.delete(packId), 1_000 * 60 * 15);
+    return packId;
+  }
+  getTemporaryPack(packId: string) {
+    return this.packInfos.get(packId);
+  }
 
   async getBeatmapsetDownloadLinks(beatmapsets: [beatmapsetId: number, lastModified?: Date][]) {
     const [latest, specific] = beatmapsets.reduce((acc, bms) => {
