@@ -76,13 +76,22 @@ export class DiscordBotService implements OnApplicationBootstrap, OnApplicationS
       const after = Date.now();
       const duration = after - before;
       const size = success.reduce((acc, [snapshot]) => acc + snapshot.size, 0);
+      const unique = Array.from(
+        success.reduce((acc, entry) => {
+          acc.set(entry[0].beatmapsetId, entry);
+          return acc;
+        }, new Map<number, typeof success[0]>)
+          .values()
+      );
       const packId = this.appService.generateTemporaryPack(
         `${reaction.message.id}.zip`,
-        success.map(([snapshot]) => [snapshot.beatmapsetId, snapshot.lastModified]),
+        unique.map(([snapshot]) => [snapshot.beatmapsetId, snapshot.lastModified]),
       );
       await user.send({
         content: `
-Downloaded ${success.length} beatmap(s) totaling ${formatBytes(size)} in ${duration / 1_000}s${failed.length ? `, ${failed.length} of which failed to download` : ''}
+Downloaded ${unique.length} beatmap(s) totaling ${formatBytes(size)} in ${duration / 1_000}s\
+${failed.length ? `\n${failed.length} of which failed to download` : ''}\
+${unique.length !== success.length ? `\n${success.length - unique.length} of which is duplicated` : ''}\
 `,
         components: [
           new ActionRowBuilder<MessageActionRowComponentBuilder>()
@@ -91,13 +100,13 @@ Downloaded ${success.length} beatmap(s) totaling ${formatBytes(size)} in ${durat
                 .setStyle(ButtonStyle.Link)
                 .setLabel('Download as Pack')
                 .setURL(`${env.REVERSE_PROXY_URL}/pack?packId=${packId}`)
-                .setDisabled(success.length === 0),
+                .setDisabled(unique.length === 0),
               new ButtonBuilder()
                 .setStyle(ButtonStyle.Link)
                 .setLabel('Link to Message')
                 .setURL(reaction.message.url),
             ),
-          ...success.slice(0, 20)
+          ...unique.slice(0, 20)
             .map(([snapshot, bm]) => generateDownloadButton(snapshot, bm))
             .reduce((acc, button) => {
               if (acc.length && acc.at(-1)!.components.length < 5)
