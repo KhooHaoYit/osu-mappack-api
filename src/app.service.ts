@@ -6,6 +6,7 @@ import { upload } from './attachmentUploader';
 import { pipeline } from 'stream/promises';
 import { CRC32Stream } from 'crc32-stream';
 import { PassThrough } from 'stream';
+import { BeatmapsetSnapshot } from '@prisma/client';
 
 @Injectable()
 export class AppService {
@@ -85,7 +86,7 @@ export class AppService {
 
   async ensureLatestBeatmapsetDownloaded(
     beatmap: { beatmapsetId?: number, beatmapId?: number },
-  ): Promise<[beatmapsetId: number, lastModified: Date, Beatmap]> {
+  ): Promise<[BeatmapsetSnapshot, Beatmap]> {
     if (!beatmap.beatmapId && !beatmap.beatmapsetId)
       throw new Error(`Please provide either beatmapsetId or beatmapId`);
     // check if osz has update
@@ -111,19 +112,16 @@ export class AppService {
       select: { lastUpdate: true },
     });
     if (lastUpdate.getTime() === dbBms?.lastUpdate.getTime()) {
-      const [{ snapshots: [{ lastModified }] }] = await this.prisma.beatmapset.findMany({
+      const [{ snapshots: [snapshot] }] = await this.prisma.beatmapset.findMany({
         where: { id: beatmapsetId },
         select: {
           snapshots: {
             take: 1,
             orderBy: { lastModified: 'desc' },
-            select: {
-              lastModified: true,
-            },
           },
         },
       });
-      return [beatmapsetId, lastModified, data];
+      return [snapshot, data];
     }
     // download osz
     const res = await request(`https://osu.ppy.sh/beatmapsets/${beatmapsetId}/download`, {
@@ -146,7 +144,16 @@ export class AppService {
     });
     if (dbBeatmapsetSnapshot) { // osz exists, aborting
       res.body.destroy();
-      return [beatmapsetId, lastModified, data];
+      const [{ snapshots: [snapshot] }] = await this.prisma.beatmapset.findMany({
+        where: { id: beatmapsetId },
+        select: {
+          snapshots: {
+            take: 1,
+            orderBy: { lastModified: 'desc' },
+          },
+        },
+      });
+      return [snapshot, data];
     }
     const size = +<string>res.headers['content-length'];
     const filename = (<string>res.headers['content-disposition'])
@@ -157,7 +164,7 @@ export class AppService {
       upload(pass, filename, size),
       pipeline(res.body, crc32, pass),
     ]);
-    await this.prisma.beatmapsetSnapshot.create({
+    const snapshot = await this.prisma.beatmapsetSnapshot.create({
       data: {
         lastModified,
         beatmapset: {
@@ -179,7 +186,7 @@ export class AppService {
       where: { id: beatmapsetId },
       data: { lastUpdate },
     });
-    return [beatmapsetId, lastModified, data];
+    return [snapshot, data];
   }
 
 }

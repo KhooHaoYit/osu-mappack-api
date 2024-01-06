@@ -10,6 +10,7 @@ import {
 } from 'discord.js';
 import { env } from './env';
 import { AppService, Beatmap } from './app.service';
+import { BeatmapsetSnapshot } from '@prisma/client';
 
 @Injectable()
 export class DiscordBotService implements OnApplicationBootstrap, OnApplicationShutdown {
@@ -54,6 +55,7 @@ export class DiscordBotService implements OnApplicationBootstrap, OnApplicationS
       if (reaction.partial)
         await reaction.fetch();
       const beatmaps = extractBeatmapsFromText(reaction.message.content);
+      const before = Date.now();
       const [success, failed] = await Promise.all(
         beatmaps.map(bm =>
           this.appService.ensureLatestBeatmapsetDownloaded(bm)
@@ -67,44 +69,38 @@ export class DiscordBotService implements OnApplicationBootstrap, OnApplicationS
           else acc[0].push(result[1]);
           return acc;
         }, [[], []] as [
-          [beatmasetId: number, lastModified: Date, Beatmap][],
+          [BeatmapsetSnapshot, Beatmap][],
           [error: any, typeof beatmaps[0]][],
         ]),
       );
+      const after = Date.now();
+      const duration = after - before;
+      const size = success.reduce((acc, [snapshot]) => acc + snapshot.size, 0);
       await user.send({
         content: `
-Downloaded ${success.length} beatmaps${failed.length ? `, ${failed.length} of which failed to download` : ''}
+Downloaded ${success.length} beatmap(s) totaling ${formatBytes(size)} in ${duration / 1_000}s${failed.length ? `, ${failed.length} of which failed to download` : ''}
 `,
         components: [
           new ActionRowBuilder<MessageActionRowComponentBuilder>()
             .addComponents(
-              new ButtonBuilder()
-                .setStyle(ButtonStyle.Link)
-                .setLabel('Download as Pack')
-                .setURL('http://google.com')
-                .setURL(`${env.REVERSE_PROXY_URL}/pack?filename=${reaction.message.id}.zip&beatmapsetIds=${success
-                  .map(([bmsId, lastModified]) => `${bmsId},${lastModified.getTime()}`).join(';')}`)
-                .setDisabled(success.length === 0),
+              generatePackDownloadButton(`${reaction.message.id}.zip`, success.map(([snapshot]) => snapshot)),
               new ButtonBuilder()
                 .setStyle(ButtonStyle.Link)
                 .setLabel('Link to Message')
                 .setURL(reaction.message.url),
             ),
-          ...success.slice(0, 20).map(([beatmapsetId, lastModified, bm]) =>
-            new ButtonBuilder()
-              .setStyle(ButtonStyle.Link)
-              .setLabel(`${bm.beatmapset_id} ${bm.artist} - ${bm.title}.osz`)
-              .setURL(`${env.REVERSE_PROXY_URL}/downloadBeatmapset?beatmapsetId=${beatmapsetId}&lastModified=${lastModified.getTime()}`)
-          ).reduce((acc, button) => {
-            if (acc.length && acc.at(-1)!.components.length < 5)
-              acc.at(-1)!.addComponents(button);
-            else
-              acc.push(
-                new ActionRowBuilder<MessageActionRowComponentBuilder>()
-                  .addComponents(button)
-              );
-            return acc;
-          }, [] as ActionRowBuilder<MessageActionRowComponentBuilder>[]),
+          ...success.slice(0, 20)
+            .map(([snapshot, bm]) => generateDownloadButton(snapshot, bm))
+            .reduce((acc, button) => {
+              if (acc.length && acc.at(-1)!.components.length < 5)
+                acc.at(-1)!.addComponents(button);
+              else
+                acc.push(
+                  new ActionRowBuilder<MessageActionRowComponentBuilder>()
+                    .addComponents(button)
+                );
+              return acc;
+            }, [] as ActionRowBuilder<MessageActionRowComponentBuilder>[]),
         ],
       });
     });
@@ -125,6 +121,36 @@ Downloaded ${success.length} beatmaps${failed.length ? `, ${failed.length} of wh
         })
         .filter(bm => bm) as { beatmapsetId?: number, beatmapId?: number }[]
         ?? [];
+    }
+
+    function generatePackDownloadButton(filename: string, snapshots: BeatmapsetSnapshot[]) {
+      return new ButtonBuilder()
+        .setStyle(ButtonStyle.Link)
+        .setLabel('Download as Pack')
+        .setURL(`${env.REVERSE_PROXY_URL}/pack?filename=${filename}&beatmapsetIds=${snapshots
+          .map((snapshot) => `${snapshot.beatmapsetId},${snapshot.lastModified.getTime()}`).join(';')}`)
+        .setDisabled(snapshots.length === 0);
+    }
+
+    function generateDownloadButton(snapshot: BeatmapsetSnapshot, bm: Beatmap) {
+      let label = `${bm.beatmapset_id} ${bm.artist} - ${bm.title}.osz`;
+      if (label.length > 80)
+        label = label.substring(0, 80 - 3) + '...';
+      return new ButtonBuilder()
+        .setStyle(ButtonStyle.Link)
+        .setLabel(label)
+        .setURL(`${env.REVERSE_PROXY_URL}/downloadBeatmapset?beatmapsetId=${snapshot.beatmapsetId}&lastModified=${snapshot.lastModified.getTime()}`);
+    }
+
+    function formatBytes(size: number) {
+      const increment = 1024;
+      if (size <= increment) return `${size}B`;
+      size /= increment;
+      if (size <= increment) return `${Math.round(size * 1000) / 1000}KiB`;
+      size /= increment;
+      if (size <= increment) return `${Math.round(size * 1000) / 1000}MiB`;
+      size /= increment;
+      return `${Math.round(size * 1000) / 1000}GiB`;
     }
 
     this.client.on('ready', () => this.logger.log(`Logged in as ${this.client.user?.tag}`));
