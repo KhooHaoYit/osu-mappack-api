@@ -49,6 +49,8 @@ export class DiscordBotService implements OnApplicationBootstrap, OnApplicationS
     this.client.on('messageReactionAdd', async (reaction, user) => {
       if (user.bot || user.id === this.client.user?.id)
         return;
+      if (reaction.emoji.name !== '⬇')
+        return;
       if (reaction.partial)
         await reaction.fetch();
       const beatmaps = extractBeatmapsFromText(reaction.message.content);
