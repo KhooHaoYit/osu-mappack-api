@@ -22,6 +22,8 @@ export class DiscordBotService implements OnApplicationBootstrap, OnApplicationS
       IntentsBitField.Flags.GuildMessages,
       IntentsBitField.Flags.MessageContent,
       IntentsBitField.Flags.GuildMessageReactions,
+      IntentsBitField.Flags.DirectMessages,
+      IntentsBitField.Flags.DirectMessageReactions,
     ],
     partials: [
       Partials.User,
@@ -55,6 +57,8 @@ export class DiscordBotService implements OnApplicationBootstrap, OnApplicationS
       if (reaction.partial)
         await reaction.fetch();
       const beatmaps = extractBeatmapsFromText(reaction.message.content);
+      if (!beatmaps.length)
+        return;
       const before = Date.now();
       const [success, failed] = await Promise.all(
         beatmaps.map(bm =>
@@ -139,7 +143,6 @@ ${unique.length !== success.length ? `\n${success.length - unique.length} of whi
         .filter(bm => bm) as { beatmapsetId?: number, beatmapId?: number }[]
         ?? [];
     }
-
 
     function generateDownloadButton(snapshot: BeatmapsetSnapshot, bm: Beatmap) {
       let label = `${bm.beatmapset_id} ${bm.artist} - ${bm.title}.osz`;
