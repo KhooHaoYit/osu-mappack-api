@@ -94,7 +94,7 @@ export class AppService {
       throw new Error(`Expected ${beatmapsets.length} beatmapsets, got ${snapshots.length}`);
     return snapshots.map(snapshot => {
       const downloadUrl = snapshot.url.replace(/^.+?(?=\/attachments)/, '/discord-cdn');
-      return `${snapshot.crc32} ${snapshot.size} ${downloadUrl} ${snapshot.filename}`;
+      return `${snapshot.crc32} ${snapshot.size} ${downloadUrl} ${snapshot.filename.replace(/\//g, '_')}`;
     }).join('\n');
   }
 
