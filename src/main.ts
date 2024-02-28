@@ -14,7 +14,7 @@ import {
   captureException,
 } from '@sentry/node';
 import { ExpressAdapter } from '@nestjs/platform-express';
-import * as express from 'express';
+import express from 'express';
 import { PrismaService } from 'nestjs-prisma';
 import { ProfilingIntegration } from '@sentry/profiling-node';
 import {

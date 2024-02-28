@@ -8,12 +8,14 @@ import { CRC32Stream } from 'crc32-stream';
 import { PassThrough } from 'stream';
 import { BeatmapsetSnapshot } from '@prisma/client';
 import { randomUUID } from 'crypto';
+import { DiscordCdnService } from './discord-cdn/discord-cdn.service';
 
 @Injectable()
 export class AppService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly discordCdnService: DiscordCdnService,
   ) { }
 
   packInfos = new Map<string, [filename: string, [beatmapsetId: number, lastModified?: Date][]]>;
@@ -59,7 +61,11 @@ export class AppService {
     ]).then(list => list.flat());
     if (snapshots.length !== beatmapsets.length)
       throw new Error(`Expected ${beatmapsets.length} beatmapsets, got ${snapshots.length}`);
-    return snapshots.map(snapshot => snapshot.url);
+    return Promise.all(
+      snapshots.map(snapshot =>
+        this.discordCdnService.generateAccessLink(snapshot.url)
+      ),
+    );
   }
 
   async buildPack(beatmapsets: [beatmapsetId: number, lastModified?: Date][]) {
